@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Норматив — моторные тесты на уроке ФК</title>
+<meta name="description" content="Веб-приложение к ВКР: сбор и обработка результатов моторных тестов на уроках физической культуры с помощью мобильных средств.">
+<meta name="theme-color" content="#11160f">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='18' r='12' fill='%23ff5a1f'/%3E%3Crect x='13' y='1' width='6' height='5' rx='1' fill='%23ff5a1f'/%3E%3Cpath d='M16 18V10' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="#/home" aria-label="Норматив — на главную">
+    <span class="logo-mark" aria-hidden="true"></span><span>Норматив</span>
+  </a>
+  <button class="burger" aria-label="Меню" aria-expanded="false"><span></span><span></span></button>
+  <nav class="nav">
+    <a href="#/home" data-r="home">Главная</a>
+    <a href="#/classes" data-r="classes">Классы</a>
+    <a href="#/test" data-r="test">Тестирование</a>
+    <a href="#/journal" data-r="journal">Журнал</a>
+    <a href="#/analytics" data-r="analytics">Аналитика</a>
+    <a href="#/experiment" data-r="experiment">Эксперимент</a>
+    <a href="#/method" data-r="method">Методика</a>
+  </nav>
+</header>
+<main id="view"></main>
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div>
+      <b>Норматив</b> — веб-приложение к выпускной квалификационной работе Стенникова Д.
+      «Методика использования мобильных приложений для сбора и обработки результатов моторных тестов на уроках физической культуры».
+    </div>
+    <div class="foot-links">
+      <a href="#/norms">Нормативы</a>
+      <a href="#/data">Данные и настройки</a>
+      <span>Данные хранятся только в этом браузере</span>
+    </div>
+  </div>
+</footer>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="js/stats.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
