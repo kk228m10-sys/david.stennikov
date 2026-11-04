@@ -7,7 +7,56 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
-const num = s => { const v = parseFloat(String(s ?? '').replace(',', '.').replace(/\s/g, '')); return isFinite(v) ? v : null; };
+/* Число из поля ввода: цифры или текст голосового ввода («185 см», «5,2 секунды», «сто восемьдесят пять»,
+   «пять целых две десятых», «пять двадцать» = 5,20, «минус три»). Не удалось разобрать — null, а не догадка. */
+const NUM_WORDS = {
+  ноль: 0, нуль: 0, один: 1, одна: 1, одно: 1, одну: 1, два: 2, две: 2, три: 3, четыре: 4, пять: 5, шесть: 6, семь: 7, восемь: 8, девять: 9,
+  десять: 10, одиннадцать: 11, двенадцать: 12, тринадцать: 13, четырнадцать: 14, пятнадцать: 15, шестнадцать: 16, семнадцать: 17, восемнадцать: 18, девятнадцать: 19,
+  двадцать: 20, тридцать: 30, сорок: 40, пятьдесят: 50, шестьдесят: 60, семьдесят: 70, восемьдесят: 80, девяносто: 90,
+  сто: 100, двести: 200, триста: 300, четыреста: 400, пятьсот: 500, шестьсот: 600, семьсот: 700, восемьсот: 800, девятьсот: 900,
+};
+const NUM_UNITS = /^(с|сек\S*|см|сантиметр\S*|м|метр\S*|мс|миллисекунд\S*|мин\S*|раз\S*|отр\S*|кр|круг\S*|балл\S*|ученик\S*|человек\S*|тест\S*|ошиб\S*)$/;
+const NUM_SEP = /^(цел\S*|запятая|точка|и)$/;
+const NUM_FRAC = { десят: 1, сот: 2, тысячн: 3 };
+const magnitude = v => (v >= 100 ? 3 : v >= 20 ? 2 : v >= 10 ? 1 : v > 0 ? 0 : -1);
+function num(input) {
+  let t = String(input ?? '').toLowerCase().replace(/ё/g, 'е').replace(/[−–—]/g, '-').replace(/\u00a0/g, ' ').trim();
+  if (!t) return null;
+  let sign = 1;
+  if (/^(минус|-)\s*/.test(t)) { sign = -1; t = t.replace(/^(минус|-)\s*/, ''); }
+  t = t.replace(/\b(\d{1,2})\s(\d{3})\b/g, '$1$2');                 // «1 200» — одно число
+  const parts = [];
+  let cur = null, fracDigits = 0, sep = false;
+  const flush = () => { if (cur) { parts.push(cur); cur = null; } };
+  for (const w of t.match(/\d+(?:[.,]\d+)?|[а-я]+/g) || []) {
+    if (/^\d/.test(w)) { flush(); parts.push({ text: w.replace(',', '.'), v: parseFloat(w.replace(',', '.')) }); continue; }
+    if (NUM_UNITS.test(w)) continue;
+    if (NUM_SEP.test(w)) { if (!cur && !parts.length) return null; flush(); sep = true; continue; }
+    if (w.startsWith('тысяч') && !w.startsWith('тысячн')) {            // «тысяча двести»
+      const k = cur ? cur.v : 1;
+      cur = { v: k * 1000, last: 4 };
+      continue;
+    }
+    const frac = Object.keys(NUM_FRAC).find(k => w.startsWith(k));
+    if (frac && !(w in NUM_WORDS)) { fracDigits = NUM_FRAC[frac]; continue; }
+    if (!(w in NUM_WORDS)) return null;
+    const v = NUM_WORDS[w], m = magnitude(v);
+    if (cur && v > 0 && m < cur.last) { cur.v += v; cur.last = m; } else { flush(); cur = { v, last: m }; }   // «пять двадцать», «шесть ноль пять» — новая группа
+  }
+  flush();
+  if (!parts.length || parts.length > 3) return null;
+  const whole = parts[0];
+  let out = whole.v;
+  if (parts.length > 1) {
+    if (String(whole.text || '').includes('.')) return null;
+    let digits = parts.slice(1).map(q => (q.text ?? String(q.v))).join('');
+    const said = sep || fracDigits;                                  // без «целых» два числа подряд («185 190») — это не дробь
+    if (!/^\d+$/.test(digits) || digits.length > (said ? 3 : 2) || (!said && whole.v >= 100)) return null;
+    if (fracDigits) { if (digits.length > fracDigits) return null; digits = digits.padStart(fracDigits, '0'); }
+    out = parseFloat(`${whole.v}.${digits}`);
+  }
+  return isFinite(out) ? sign * out : null;
+}
 const fmt = (v, d = 0) => (v == null || !isFinite(v) ? '—' : Number(v).toFixed(d).replace('.', ','));
 const today = () => new Date().toISOString().slice(0, 10);
 const fmtDate = d => (d ? new Date(d + 'T00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
@@ -341,8 +390,8 @@ function classPanel(c) {
       <div class="row"><select data-act="role" data-id="${c.id}">${['—', 'ЭГ', 'КГ'].map(r => `<option ${c.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select>
       <button class="btn small danger" data-act="del-class" data-id="${c.id}">Удалить класс</button></div></div>
     <form class="row" data-form="add-students" style="margin-bottom:14px">
-      <label class="f">Юношей<input name="m" type="number" min="0" max="40" value="0" style="width:90px"></label>
-      <label class="f">Девушек<input name="f" type="number" min="0" max="40" value="0" style="width:90px"></label>
+      <label class="f">Юношей<input name="m" data-num autocomplete="off" value="0" style="width:90px"></label>
+      <label class="f">Девушек<input name="f" data-num autocomplete="off" value="0" style="width:90px"></label>
       <button class="btn primary" style="align-self:flex-end">Добавить учеников</button>
     </form>
     ${rs.length ? `<div class="tbl-wrap"><table><thead><tr><th class="num">№</th><th>Код</th><th>Пол</th>${S.settings.showNames ? '<th>ФИО</th>' : ''}<th>Мед. группа</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">Учеников нет.</p>'}
@@ -592,10 +641,10 @@ TOOLS.attempts = {
     const rows = roster(s.classId).map(st => {
       const r = getRes(s.id, st.id, t.id), a = r?.attempts || [];
       return `<tr data-sid="${st.id}"><td><b>${esc(who(st))}</b> <span class="muted small">${st.sex}</span></td>
-        ${[...Array(k)].map((_, i) => `<td><input inputmode="decimal" data-i="${i}" value="${a[i] != null ? fmt(a[i], t.dec) : ''}" style="width:86px" aria-label="Попытка ${i + 1}"></td>`).join('')}
+        ${[...Array(k)].map((_, i) => `<td><input data-num autocomplete="off" data-i="${i}" value="${a[i] != null ? fmt(a[i], t.dec) : ''}" style="width:86px" aria-label="Попытка ${i + 1}"></td>`).join('')}
         <td class="num best"><b>${r ? fmt(r.value, t.dec) : '—'}</b></td><td class="num sc">${r ? scoreBadge(score(t.id, st.id, r.value)) : ''}</td></tr>`;
     }).join('');
-    return `<div class="card tool"><p class="small muted" style="margin:0">Введите результаты попыток в ${t.unit}; в зачёт идёт лучшая, балл считается сразу. Enter — к следующему полю.</p>
+    return `<div class="card tool"><p class="small muted" style="margin:0">Введите результаты попыток в ${t.unit}; в зачёт идёт лучшая, балл считается сразу. Можно цифрами или голосом с клавиатуры: «сто восемьдесят пять», «минус три». Enter — к следующему полю.</p>
       <div class="tbl-wrap"><table><thead><tr><th>Ученик</th>${[...Array(k)].map((_, i) => `<th>Попытка ${i + 1}</th>`).join('')}<th class="num">Лучшая</th><th class="num">Балл</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   },
   init(t, s) {
@@ -630,14 +679,14 @@ TOOLS.video = {
       <label class="f">Видео прыжка (снимайте сбоку, камера на уровне стоп)<input type="file" accept="video/*" id="v-file"></label>
       <video class="vid" id="v-el" playsinline muted></video>
       <div class="row"><label class="f">Кадров/с в файле<select id="v-fps"><option>30</option><option>60</option><option>120</option><option>240</option></select></label>
-        <label class="f">Замедление, ×<input id="v-slow" type="number" min="1" step="1" value="1" style="width:90px"></label></div>
+        <label class="f">Замедление, ×<input id="v-slow" data-num autocomplete="off" value="1" style="width:90px"></label></div>
       <div class="row"><button class="btn small" id="v-prev">◀ кадр</button><button class="btn small" id="v-play">▶ / ❚❚</button><button class="btn small" id="v-next">кадр ▶</button></div>
       <div class="row"><button class="btn" id="v-t1">Отметить отрыв</button><button class="btn" id="v-t2">Отметить приземление</button></div>
     </div>
     <div class="grid" style="align-content:start">
       <div class="kpis"><div class="kpi"><span>Отрыв</span><b id="v-a">—</b></div><div class="kpi"><span>Приземление</span><b id="v-b">—</b></div>
         <div class="kpi"><span>Время полёта</span><b id="v-ft">—</b></div><div class="kpi"><span>Высота</span><b id="v-h">—</b></div></div>
-      <label class="f">или время полёта вручную, мс<input id="v-ms" inputmode="decimal" placeholder="например 520"></label>
+      <label class="f">или время полёта вручную, мс<input id="v-ms" data-num autocomplete="off" placeholder="например 520"></label>
       <div class="chips" id="chips">${chipsHTML(s, t)}</div>
       <button class="btn lime" id="v-save">Сохранить попытку выбранному ученику</button>
       <p class="small muted" id="v-att"></p>
@@ -698,8 +747,8 @@ TOOLS.video = {
 /* А. 6-минутный бег: обратный отсчёт, касание ученика = +1 круг, в конце — добавочные метры */
 TOOLS.laps = {
   html: (t, s) => `<div class="card tool">
-    <div class="row"><label class="f">Длина круга, м<input id="lp-len" type="number" min="20" step="10" value="200" style="width:110px"></label>
-      <label class="f">Длительность, мин<input id="lp-min" type="number" min="1" max="20" value="6" style="width:90px"></label>
+    <div class="row"><label class="f">Длина круга, м<input id="lp-len" data-num autocomplete="off" value="200" style="width:110px"></label>
+      <label class="f">Длительность, мин<input id="lp-min" data-num autocomplete="off" value="6" style="width:90px"></label>
       <label class="check small" style="align-self:flex-end"><input type="checkbox" id="lp-fix"> Исправление: касание = −1 круг</label></div>
     <div class="big-display" id="lp-d">6:00</div><div class="sub-display">Касание ученика на линии круга добавляет круг.</div>
     <div class="row" style="justify-content:center"><button class="btn primary" id="lp-start">Старт</button><button class="btn" id="lp-stop" disabled>Стоп</button></div>
@@ -707,7 +756,7 @@ TOOLS.laps = {
     <div id="lp-end"></div></div>`,
   init(t, s) {
     let running = false, endAt = 0, iv = 0;
-    const len = () => num($('#lp-len').value) || 200, lbl = lapLabel(s, t);
+    const len = () => Math.max(20, num($('#lp-len').value) || 200), lbl = lapLabel(s, t);
     const put = (sid, laps, extra) => {
       const L = len();
       setRes(s.id, sid, t.id, laps * L + extra, { source: 'круги', meta: { laps, extra, len: L } });
@@ -716,7 +765,7 @@ TOOLS.laps = {
     const endTable = () => {
       $('#lp-end').innerHTML = `<h3 style="margin-top:14px">Добавочные метры последнего неполного круга</h3><div class="tbl-wrap"><table><thead><tr><th>Ученик</th><th class="num">Круги</th><th>+ метры</th><th class="num">Итого, м</th></tr></thead><tbody>${roster(s.classId).map(st => {
         const r = getRes(s.id, st.id, t.id), m = r?.meta || { laps: 0, extra: 0 };
-        return `<tr data-sid="${st.id}"><td>${esc(who(st))}</td><td class="num">${m.laps}</td><td><input data-extra inputmode="numeric" value="${m.extra || ''}" style="width:90px"></td><td class="num tot">${r ? fmt(r.value, 0) : '—'}</td></tr>`;
+        return `<tr data-sid="${st.id}"><td>${esc(who(st))}</td><td class="num">${m.laps}</td><td><input data-extra data-num autocomplete="off" value="${m.extra || ''}" style="width:90px"></td><td class="num tot">${r ? fmt(r.value, 0) : '—'}</td></tr>`;
       }).join('')}</tbody></table></div>`;
     };
     const stop = () => { clearInterval(iv); running = false; $('#lp-start').disabled = false; $('#lp-stop').disabled = true; beep(700, 0.8); endTable(); };
@@ -730,7 +779,7 @@ TOOLS.laps = {
       }
       if (ev.target.id === 'lp-start') {
         running = true; $('#lp-start').disabled = true; $('#lp-stop').disabled = false; beep(1040, 0.35);
-        endAt = performance.now() + (num($('#lp-min').value) || 6) * 60000;
+        endAt = performance.now() + clamp(num($('#lp-min').value) || 6, 1, 20) * 60000;
         iv = setInterval(() => {
           const left = Math.max(0, (endAt - performance.now()) / 1000);
           $('#lp-d').textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
@@ -876,7 +925,7 @@ function download(name, text, type) {
 /* ---------- нормативы ---------- */
 VIEWS.norms = () => {
   const t = T[UI.aTest] || TESTS[0];
-  const rows = GRADES.map(g => `<tr><td><b>${g} класс</b></td>${['М', 'Ж'].map(sex => normFor(t.id, sex, g).map((v, k) => `<td><input inputmode="decimal" data-norm="${sex}|${g}|${k}" value="${fmt(v, t.dec)}" style="width:90px"></td>`).join('')).join('')}</tr>`).join('');
+  const rows = GRADES.map(g => `<tr><td><b>${g} класс</b></td>${['М', 'Ж'].map(sex => normFor(t.id, sex, g).map((v, k) => `<td><input data-num autocomplete="off" data-norm="${sex}|${g}|${k}" value="${fmt(v, t.dec)}" style="width:90px"></td>`).join('')).join('')}</tr>`).join('');
   return `<section class="page wrap">
     <div class="page-head"><div><h2>Нормативы</h2><p>Для каждого теста задаются результаты, которые соответствуют 10 и 1 баллу; между ними балл считается линейно (шкала 1–10 по Типовым правилам [3]).</p></div><a class="btn ghost small" href="#/journal">← Журнал</a></div>
     <div class="note warn" style="margin-bottom:16px">Значения по умолчанию — <b>ориентировочные, для демонстрации</b>. Перед использованием замените их нормативами типовой учебной программы по физической культуре для соответствующего класса [2].</div>
@@ -983,10 +1032,10 @@ VIEWS.experiment = () => {
       <form class="row" data-form="manual-session" style="margin-bottom:14px">
         <label class="f">Класс<select name="classId">${S.classes.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label>
         <label class="f">Дата<input type="date" name="date" value="${today()}"></label>
-        <label class="f">Минут всего<input name="min" type="number" min="1" required style="width:100px"></label>
-        <label class="f">Учеников<input name="n" type="number" min="1" required style="width:90px"></label>
-        <label class="f">Тестов<input name="k" type="number" min="1" required style="width:80px"></label>
-        <label class="f">Ошибок<input name="e" type="number" min="0" value="0" style="width:80px"></label>
+        <label class="f">Минут всего<input name="min" data-num autocomplete="off" required style="width:100px"></label>
+        <label class="f">Учеников<input name="n" data-num autocomplete="off" required style="width:90px"></label>
+        <label class="f">Тестов<input name="k" data-num autocomplete="off" required style="width:80px"></label>
+        <label class="f">Ошибок<input name="e" data-num autocomplete="off" value="0" style="width:80px"></label>
         <button class="btn primary" style="align-self:flex-end" ${S.classes.length ? '' : 'disabled'}>Добавить ручное тестирование</button></form>
       ${rows.length ? `<div class="tbl-wrap"><table><thead><tr><th>Дата</th><th>Класс</th><th>Способ</th><th class="num">Минут</th><th class="num">Учеников × тестов</th><th class="num">Мин на ученика·тест</th><th class="num">Ошибок на 100</th><th></th></tr></thead><tbody>${rows.map(({ s, m }) => `<tr><td>${fmtDate(s.date)}</td><td>${esc(cls(s.classId)?.name)} ${cls(s.classId)?.role && cls(s.classId).role !== '—' ? `<span class="tag ${cls(s.classId).role === 'ЭГ' ? 'eg' : 'kg'}">${cls(s.classId).role}</span>` : ''}</td><td>${s.method === 'app' ? 'приложение' : 'вручную'}</td><td class="num">${fmt(m.minutes, 0)}</td><td class="num">${m.nStudents} × ${m.nTests}</td><td class="num">${fmt(m.perUnit, 2)}</td><td class="num">${fmt(m.errPer100, 1)}</td><td>${s.method === 'manual' ? `<button class="btn small ghost" data-act="del-session" data-id="${s.id}">✕</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Записей пока нет.</p>'}
       <div style="margin-top:12px">${cmp}</div></div>
@@ -1033,7 +1082,9 @@ function surveySummary() {
     ${tests}
     ${items.some(x => x[0] != null && x[1] != null) ? `<h3 style="margin-top:14px">ЭГ по пунктам анкеты</h3>${lineChart(SURVEY.map((_, i) => `П${i + 1}`), [{ name: 'до', color: '#9aa08f', pts: items.map(x => x[0]) }, { name: 'после', color: '#ff5a1f', pts: items.map(x => x[1]) }], { dec: 1 })}` : ''}`;
 }
-function parseNums(s) { return String(s).split(/[\s;]+/).map(x => num(x)).filter(x => x != null); }
+function parseNums(s) {
+  return String(s).split(/[\n;]+/).flatMap(l => (/[а-яё]/i.test(l) ? [l] : l.trim().split(/\s+/))).map(num).filter(x => x != null);
+}
 function accuracy(text) {
   const pairs = text.split(/\n/).map(l => l.split(/[;\t]|\s{2,}|(?<=\d)\s+(?=[\d-])/).map(num)).filter(p => p.length >= 2 && p[0] != null && p[1] != null);
   if (pairs.length < 3) return '<p class="down">Нужно минимум 3 пары значений.</p>';
@@ -1258,7 +1309,7 @@ const ACTS = {
   edit: el => {
     if (el.querySelector('input')) return;
     const s = session(UI.jSession), t = T[el.dataset.tid], sid = el.dataset.sid, r = getRes(s.id, sid, t.id);
-    el.innerHTML = `<input inputmode="decimal" value="${r ? fmt(r.value, t.dec) : ''}">`;
+    el.innerHTML = `<input data-num autocomplete="off" value="${r ? fmt(r.value, t.dec) : ''}">`;
     const inp = $('input', el);
     inp.focus(); inp.select();
     const done = () => {
@@ -1320,7 +1371,7 @@ const FORMS = {
     S.classes.push(c); UI.classId = c.id; save(); render();
   },
   'add-students': f => {
-    const m = clamp(+f.m.value || 0, 0, 40), w = clamp(+f.f.value || 0, 0, 40);
+    const m = clamp(Math.round(num(f.m.value) || 0), 0, 40), w = clamp(Math.round(num(f.f.value) || 0), 0, 40);
     if (!m && !w) return toast('Укажите количество');
     addStudents(UI.classId, [...Array(m).fill({ sex: 'М' }), ...Array(w).fill({ sex: 'Ж' })]); render();
   },
@@ -1332,7 +1383,9 @@ const FORMS = {
     S.sessions.push(s); save(); UI.sessionId = s.id; UI.testId = tests[0]; UI.classId = s.classId; render();
   },
   'manual-session': f => {
-    S.sessions.push({ id: uid(), classId: f.classId.value, date: f.date.value, label: 'Ручное тестирование', method: 'manual', durationMin: +f.min.value, nStudents: +f.n.value, nTests: +f.k.value, errors: +f.e.value || 0 });
+    const min = num(f.min.value), n = num(f.n.value), k = num(f.k.value);
+    if (!(min > 0 && n > 0 && k > 0)) return toast('Укажите минуты, учеников и тесты числами больше нуля');
+    S.sessions.push({ id: uid(), classId: f.classId.value, date: f.date.value, label: 'Ручное тестирование', method: 'manual', durationMin: min, nStudents: Math.round(n), nTests: Math.round(k), errors: Math.max(0, Math.round(num(f.e.value) || 0)) });
     save(); render(); toast('Ручное тестирование добавлено');
   },
   survey: f => {
@@ -1356,6 +1409,15 @@ document.addEventListener('click', ev => {
   if (el && ACTS[el.dataset.act] && el.tagName !== 'SELECT' && !(el.tagName === 'INPUT' && el.type !== 'button')) { ev.preventDefault(); ACTS[el.dataset.act](el, ev); }
   if (ev.target.closest('.burger')) { const n = $('.nav'); n.classList.toggle('open'); $('.burger').setAttribute('aria-expanded', n.classList.contains('open')); }
 });
+document.addEventListener('focusin', ev => { if (ev.target.matches?.('input[data-num]')) ev.target.dataset.prev = ev.target.value; }, true);
+document.addEventListener('change', ev => {
+  const el = ev.target;
+  if (!el.matches?.('input[data-num]') || !el.value.trim()) return;
+  const v = num(el.value);
+  if (v == null) { toast(`Не понял «${el.value.trim()}» — нужно число, например 5,2`); el.value = el.dataset.prev ?? ''; }
+  else el.value = String(v).replace('.', ',');
+  el.dataset.prev = el.value;
+}, true);
 document.addEventListener('change', ev => {
   const el = ev.target;
   if (el.dataset.act && CHANGES[el.dataset.act]) return CHANGES[el.dataset.act](el);
