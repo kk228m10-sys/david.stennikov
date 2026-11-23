@@ -251,7 +251,6 @@ VIEWS.home = () => {
     const y = 80 + i * 70;
     return `<path d="M-50 ${y} C 400 ${y - 120}, 900 ${y + 160}, 1700 ${y - 40}"/>`;
   }).join('');
-  const h = hypothesis();
   return `
   <section class="hero on-dark">
     <svg class="lanes" viewBox="0 0 1600 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${lanes}</svg>
@@ -270,36 +269,6 @@ VIEWS.home = () => {
         <div class="read"><b id="hw">0,00</b><span>бег 30 м</span></div>
       </div>
     </div>
-  </section>
-
-  <section class="sec wrap">
-    <div class="page-head reveal"><div><h2>Задачи исследования → модули</h2><p>Каждая задача ВКР закрыта работающей частью сайта.</p></div></div>
-    <div class="grid g4">
-      <a class="card task reveal" href="#/method"><span class="n">01</span><h3>Анализ литературы</h3><p class="muted small">Нормативная база РК, метрологические требования, классификация приложений А–Ж и критерии отбора.</p><span class="go">Методика →</span></a>
-      <a class="card task reveal" href="#/test"><span class="n">02</span><h3>Методика сбора и обработки</h3><p class="muted small">Протокол урока: класс по кодам, тесты в правильном порядке, инструмент под каждый показатель, баллы автоматически.</p><span class="go">Тестирование →</span></a>
-      <a class="card task reveal" href="#/experiment"><span class="n">03</span><h3>Экспериментальная проверка</h3><p class="muted small">Время тестирования, точность (ICC, Блэнд–Альтман), интерес учащихся, сравнение ЭГ и КГ.</p><span class="go">Эксперимент →</span></a>
-      <a class="card task reveal" href="#/method/recs"><span class="n">04</span><h3>Рекомендации учителям</h3><p class="muted small">Пошаговое внедрение: подготовка, проверка точности, проведение, обработка, обратная связь.</p><span class="go">Рекомендации →</span></a>
-    </div>
-  </section>
-
-  <section class="sec wrap">
-    <div class="page-head reveal"><div><h2>Гипотеза — по вашим данным</h2><p>Показатели считаются из журнала и раздела «Эксперимент». Метка «демо-данные» означает, что в расчёт попали сгенерированные записи, а не результаты эксперимента.</p></div></div>
-    <div class="grid g3">
-      <div class="card metric reveal"><span class="tag">Время</span>${h.time.demo ? ' <span class="tag demo">демо-данные</span>' : ''}<b>${h.time.value}</b><p class="muted small">${h.time.text}</p></div>
-      <div class="card metric reveal"><span class="tag">Точность записи</span>${h.err.demo ? ' <span class="tag demo">демо-данные</span>' : ''}<b>${h.err.value}</b><p class="muted small">${h.err.text}</p></div>
-      <div class="card metric reveal"><span class="tag">Интерес</span>${h.int.demo ? ' <span class="tag demo">демо-данные</span>' : ''}<b>${h.int.value}</b><p class="muted small">${h.int.text}</p></div>
-    </div>
-  </section>
-
-  <section class="sec wrap">
-    <div class="page-head reveal"><div><h2>Как проходит урок</h2></div></div>
-    <ol class="steps">
-      <li class="reveal"><b>Подготовка</b><p class="small muted">Класс заводится по кодам, отмечаются медицинские группы, выбираются тесты.</p></li>
-      <li class="reveal"><b>Проверка точности</b><p class="small muted">Пилотные замеры приложения против эталона: ICC и границы согласия.</p></li>
-      <li class="reveal"><b>Тестирование</b><p class="small muted">Быстрота → сила → выносливость. Устройство меряет, учитель смотрит за техникой.</p></li>
-      <li class="reveal"><b>Обработка</b><p class="small muted">Баллы по нормативам, сводка класса, экспорт в таблицу для журнала.</p></li>
-      <li class="reveal"><b>Обратная связь</b><p class="small muted">Карточка ученика с динамикой и подсказкой, что подтянуть.</p></li>
-    </ol>
   </section>
 
   <section class="sec wrap">
@@ -323,10 +292,6 @@ VIEWS.home = () => {
         <p><b>Кенибаев Касым Серикович</b></p>
       </div>
     </div>
-  </section>
-
-  <section class="sec wrap">
-    <div class="card note reveal"><b>Персональные данные.</b> Ученики хранятся под кодами (например, 7А-05), ФИО — по желанию и только на этом устройстве. Сайт не отправляет результаты в облако: всё лежит в памяти браузера, перенос — через экспорт файла.</div>
   </section>`;
 };
 AFTER.home = () => {
